@@ -29,8 +29,9 @@ export default class Blacklist extends Events {
 	 * Set db path to  <current process directory> + /blacklist
 	 *
 	 * @returns {string} New db path
+	 * @see {process.cwd()}
 	 */
-	setCwdDbPath() {
+	loadDbFromCwd() {
 		const dbPath = Path.join(process.cwd(), 'blacklists');
 		this.dbPath = dbPath;
 		debug('setCwdDbPath', 'path=%o', dbPath);
@@ -43,7 +44,7 @@ export default class Blacklist extends Events {
 	 *
 	 * @param {string} path
 	 */
-	set dbPath(path) {
+	loadDb(path) {
 		debug('set dbPath', 'path=%o', path);
 
 		if (typeof (path) !== 'string' || !path) {

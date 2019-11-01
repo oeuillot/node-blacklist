@@ -8,7 +8,7 @@ program.command("test <url>").action(async (url) => {
 	console.log('test url=', url);
 
 	const blackList = new Blacklist();
-	blackList.setCwdDbPath();
+	blackList.loadDbFromCwd();
 
 	const result = await blackList.process(new u.URL(url));
 
