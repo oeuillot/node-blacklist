@@ -1,0 +1,17 @@
+{
+  "name": "node-blacklist",
+  "version": "1.0.0",
+  "description": "Blacklist engine",
+  "main": "./src/Blacklist.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "olivier@oeuillot.net",
+  "license": "ISC",
+  "dependencies": {
+    "@std/esm": "^0.26.0",
+    "commander": "^3.0.2",
+    "debug": "^4.1.1",
+    "performance-now": "^2.1.0"
+  }
+}
