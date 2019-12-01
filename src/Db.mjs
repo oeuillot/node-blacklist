@@ -1,9 +1,11 @@
 import Events from 'events';
-import URL from 'url';
+import u from 'url';
 import Path from 'path';
 import NOW from 'performance-now';
 import Debug from 'debug';
 import {default as fsWithCallbacks} from 'fs'
+
+import {loadFile, normalizePath, splitLines, processGlobalLine} from "./utils";
 
 const fs = fsWithCallbacks.promises;
 
@@ -18,6 +20,8 @@ export const STATUS_EVENT = 'status';
 export const LOADED_STATUS = 'loaded';
 export const LOADING_STATUS = 'loading';
 export const ERROR_STATUS = 'error';
+
+const GLOBAL_USAGE_FILENAME = 'global_usage';
 
 const debug = Debug('blacklist:Db');
 
@@ -34,6 +38,7 @@ export default class Db extends Events {
 		this._searchTreeNode = {};
 		this._expressionsList = [];
 		this._folders = {};
+		this._globalUsages = {};
 
 		this._changeStatus(LOADING_STATUS);
 
@@ -73,6 +78,27 @@ export default class Db extends Events {
 	}
 
 	/**
+	 * Get global usages description
+	 *
+	 * @returns {{}}
+	 */
+	async getGlobalUsages() {
+		await this.waitReady();
+
+		return this._globalUsages;
+	}
+
+	/**
+	 *
+	 * @param folderName
+	 */
+	async getFolder(folderName) {
+		await this.waitReady();
+
+		return this._folders[folderName];
+	}
+
+	/**
 	 *
 	 * @param path
 	 * @return {Promise<void>}
@@ -86,6 +112,34 @@ export default class Db extends Events {
 		}
 
 		const files = await fs.readdir(path);
+
+		const gu = await loadFile(Path.join(path, GLOBAL_USAGE_FILENAME));
+		if (gu) {
+			const sp = splitLines(gu, true);
+
+			if (sp) {
+				let block = null;
+				for (let i = 0; i < sp.length; i++) {
+					const line = sp[i];
+					if (!block) {
+						if (!line) {
+							continue;
+						}
+						block = processGlobalLine({}, line);
+						continue;
+					}
+					if (line) {
+						block = processGlobalLine(block, line);
+						continue;
+					}
+
+					if (block.NAME && block.NAME['']) {
+						this._globalUsages[block.NAME['']] = block;
+					}
+					block = undefined;
+				}
+			}
+		}
 
 		const folders = [];
 		for (let i = 0; i < files.length; i++) {
@@ -104,7 +158,9 @@ export default class Db extends Events {
 				continue;
 			}
 
-			const folder = new Folder(file, folderPath, this._options);
+			const desc = this._globalUsages[file];
+
+			const folder = new Folder(file, folderPath, desc, this._options);
 			const p = folder.load(this._searchTreeNode, this._expressionsList);
 			folders.push(p);
 
@@ -117,11 +173,12 @@ export default class Db extends Events {
 	}
 
 	/**
-	 * @param {Result} result;
-	 * @param {URL} url
+	 * Wait the end of database loading
+	 *
+	 * @returns {Promise<Db>}
 	 */
-	async process(url) {
-		debug('process', 'Current status=', this.status);
+	async waitReady() {
+		debug('waitReady', 'Current status=', this.status);
 		if (this.status === ERROR_STATUS) {
 			const ex = new Error('Error status for db');
 			ex.error = this.status;
@@ -132,10 +189,11 @@ export default class Db extends Events {
 			const p = new Promise((resolved, rejected) => {
 				const testStatus = (status, error) => {
 					if (status === ERROR_STATUS) {
-						return Promise.reject(error);
+						rejected(error);
+						return;
 					}
 
-					this.process(url).then(resolved, rejected);
+					resolved(this);
 				};
 
 				this.once('status', testStatus);
@@ -143,6 +201,17 @@ export default class Db extends Events {
 
 			return p;
 		}
+
+		return Promise.resolve(this);
+	}
+
+	/**
+	 *
+	 * @param {u.URL} url
+	 * @returns {Promise<Result>}
+	 */
+	async process(url) {
+		await this.waitReady();
 
 		const result = {
 			domains: {},
@@ -283,12 +352,4 @@ export default class Db extends Events {
 
 		return new Result(result, this._folders, dt);
 	}
-}
-
-export function normalizePath(path) {
-	if (path[path.length - 1] === '/') {
-		path = path.substring(0, path.length - 1);
-	}
-
-	return path;
 }

@@ -1,25 +1,38 @@
-import {default as fsWithCallbacks} from 'fs'
 import Path from 'path'
-import {FoldersSymbol, normalizePath, PathsSymbol} from "./Db";
+import {FoldersSymbol, PathsSymbol} from "./Db";
+
+import {loadFile, normalizePath, splitLines} from "./utils";
 
 import Debug from 'debug';
-
-const fs = fsWithCallbacks.promises;
 
 const debug = Debug('blacklist:Folder');
 
 export default class Folder {
-	constructor(name, path, options = {}) {
+	constructor(name, path, descriptions, options = {}) {
 		this.name = name;
 		this.path = path;
 		this._options = options;
-		this.usages = [];
+		this._usages = [];
+		this._descriptions = descriptions;
+	}
+
+	get descriptions() {
+		return this._descriptions;
+	}
+
+	get usages() {
+		return this._usages;
 	}
 
 	async loadUsages() {
-		const usageContent = await this.loadFile(Path.join(this.path, 'usage'));
+		const path = Path.join(this.path, 'usage');
+		const usageContent = await loadFile(path);
+		if (!usageContent) {
+//			console.error('No usage for path=%s', path);
+			return;
+		}
 		const usages = splitLines(usageContent);
-		this.usages = usages;
+		this._usages = usages;
 
 		debug('loadUsages', 'usages=%o', usages);
 	}
@@ -92,7 +105,7 @@ export default class Folder {
 
 	async loadDomains(searchTreeNode) {
 
-		const domains = await this.loadFile(Path.join(this.path, 'domains'));
+		const domains = await loadFile(Path.join(this.path, 'domains'));
 		if (!domains) {
 			return;
 		}
@@ -105,7 +118,7 @@ export default class Folder {
 
 	async loadUrls(searchTreeNode) {
 
-		const urls = await this.loadFile(Path.join(this.path, 'urls'));
+		const urls = await loadFile(Path.join(this.path, 'urls'));
 		if (!urls) {
 			return;
 		}
@@ -149,7 +162,7 @@ export default class Folder {
 	 */
 	async loadExpressions(expressionsList, filename, restrictive) {
 
-		const expressions = await this.loadFile(Path.join(this.path, filename));
+		const expressions = await loadFile(Path.join(this.path, filename));
 		if (!expressions) {
 			return;
 		}
@@ -184,31 +197,4 @@ export default class Folder {
 
 		debug('load', 'searchTreeNode=%o', searchTreeNode);
 	}
-
-	async loadFile(path) {
-		let stat;
-		try {
-			stat = await fs.stat(path);
-		} catch (x) {
-			if (x.code === 'ENOENT') {
-				return;
-			}
-			console.error(x);
-			return;
-		}
-		if (!stat.isFile()) {
-			debug('loadFile', 'Ignore file path=%s stat=%o', path, stat);
-			return;
-		}
-
-		const content = fs.readFile(path, {encoding: 'latin1'});
-
-		debug('loadFile', 'path=%s', path);
-
-		return content;
-	}
-}
-
-function splitLines(data) {
-	return data.split(/\r?\n/).filter((s) => (s && s[0] !== '#'));
 }

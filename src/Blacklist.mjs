@@ -1,5 +1,5 @@
 import Events from 'events';
-import URL from 'url';
+import u from 'url';
 import Path from 'path';
 import Debug from 'debug';
 
@@ -33,8 +33,9 @@ export default class Blacklist extends Events {
 	 */
 	loadDbFromCwd() {
 		const dbPath = Path.join(process.cwd(), 'blacklists');
-		this.dbPath = dbPath;
 		debug('setCwdDbPath', 'path=%o', dbPath);
+
+		this.loadDb(dbPath);
 
 		return dbPath;
 	}
@@ -67,9 +68,8 @@ export default class Blacklist extends Events {
 	/**
 	 *
 	 * @returns {Db}
-	 * @private
 	 */
-	_getDb() {
+	getCurrentDb() {
 		if (!this._db) {
 			throw new Error('No db setted, you must set db path before.');
 		}
@@ -79,12 +79,16 @@ export default class Blacklist extends Events {
 	/**
 	 * Process an URL and returns a result object
 	 *
-	 * @param {URL} url
+	 * @param {URL|string} url
 	 * @return {Promise<Result>} result
 	 */
 	async process(url) {
+		if (typeof (url) === 'string') {
+			url = new u.URL(url);
+		}
+
 		debug('process', 'url=%o', url);
-		const db = this._getDb();
+		const db = this.getCurrentDb();
 
 		const result = await db.process(url);
 
